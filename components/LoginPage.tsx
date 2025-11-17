@@ -3,8 +3,6 @@ import NeonButton from './common/NeonButton';
 import UserIcon from './icons/UserIcon';
 import LockIcon from './icons/LockIcon';
 import LogoIcon from './icons/LogoIcon';
-import GoogleIcon from './icons/GoogleIcon'; // Import Google Icon
-import GoogleSignInPopup from './common/GoogleSignInPopup'; // Import Popup
 import type { User } from '../types';
 
 interface LoginPageProps {
@@ -20,7 +18,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [isGooglePopupOpen, setGooglePopupOpen] = useState(false); // State for popup
 
   useEffect(() => {
     setError('');
@@ -154,21 +151,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         </NeonButton>
       </form>
 
-      <div className="my-6 flex items-center">
-        <div className="flex-grow border-t border-gray-600"></div>
-        <span className="flex-shrink mx-4 text-gray-500 text-sm">OR</span>
-        <div className="flex-grow border-t border-gray-600"></div>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setGooglePopupOpen(true)}
-        className="w-full flex justify-center items-center gap-3 px-6 py-3 bg-white/90 hover:bg-white text-gray-800 font-semibold rounded-md transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
-      >
-        <GoogleIcon className="w-6 h-6" />
-        <span>Sign in with Google</span>
-      </button>
-
       <div className="mt-6 text-center">
         <button
           onClick={() => setMode(isLogin ? 'signup' : 'login')}
@@ -221,12 +203,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   return (
     <>
-      {isGooglePopupOpen && (
-        <GoogleSignInPopup
-          onClose={() => setGooglePopupOpen(false)}
-          onLoginSuccess={onLoginSuccess}
-        />
-      )}
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="relative bg-gray-900/50 backdrop-blur-sm border-2 border-cyan-500/50 rounded-2xl shadow-[0_0_20px_theme(colors.cyan.500/50%)] overflow-hidden">
