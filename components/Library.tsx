@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { User, GameRequest } from '../types';
 import NeonButton from './common/NeonButton';
@@ -23,18 +24,24 @@ const StatusBadge: React.FC<{ status: 'pending' | 'approved' }> = ({ status }) =
 };
 
 interface LibraryProps {
-  currentUser: User;
+  currentUser: Omit<User, 'password'>;
 }
 
 const Library: React.FC<LibraryProps> = ({ currentUser }) => {
   const [userRequests, setUserRequests] = useState<GameRequest[]>([]);
 
   useEffect(() => {
-    const allRequests: GameRequest[] = JSON.parse(localStorage.getItem('gameRequests') || '[]');
-    const filteredRequests = allRequests
-      .filter(req => req.userEmail === currentUser.email)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    setUserRequests(filteredRequests);
+    try {
+        const allRequests: GameRequest[] = JSON.parse(localStorage.getItem('gameRequests') || '[]');
+        const filteredRequests = allRequests
+          .filter(req => req.userEmail === currentUser.email)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setUserRequests(filteredRequests);
+    } catch (error) {
+        console.error("Failed to parse gameRequests from localStorage:", error);
+        localStorage.removeItem('gameRequests');
+        setUserRequests([]);
+    }
   }, [currentUser.email]);
 
   return (
@@ -43,12 +50,12 @@ const Library: React.FC<LibraryProps> = ({ currentUser }) => {
       {userRequests.length > 0 ? (
         <div className="space-y-4">
             {userRequests.map(request => (
-                <div key={request.id} className="bg-gray-800/50 p-4 rounded-lg border border-purple-500/20 flex justify-between items-center transition-all hover:border-purple-500/50">
-                    <div>
+                <div key={request.id} className="bg-gray-800/50 p-4 rounded-lg border border-purple-500/20 flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-all hover:border-purple-500/50">
+                    <div className="flex-grow">
                         <h3 className="text-xl font-semibold text-white">{request.gameTitle}</h3>
                         <p className="text-sm text-gray-400">Requested on {new Date(request.timestamp).toLocaleDateString()}</p>
                     </div>
-                    <div>
+                    <div className="flex-shrink-0 self-end sm:self-center">
                         {request.status === 'approved' && request.fileUrl && request.fileName ? (
                             <a href={request.fileUrl} download={request.fileName}>
                                 <NeonButton color="green" size="sm">Download</NeonButton>

@@ -1,30 +1,65 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, GameRequest, Message } from '../types';
+import type { User, GameRequest, Message, OnlineFixRequest, BypassRequest } from '../types';
 import LogoIcon from './icons/LogoIcon';
 import NeonButton from './common/NeonButton';
 
 interface AdminDashboardProps {
   onLogout: () => void;
-  currentUser: User;
+  currentUser: Omit<User, 'password'>;
 }
 
-type AdminView = 'requests' | 'messages';
+type AdminView = 'requests' | 'messages' | 'onlineFixes' | 'bypassRequests';
+
+const safeParse = <T,>(key: string, defaultValue: T): T => {
+    const item = localStorage.getItem(key);
+    if (!item) return defaultValue;
+    try {
+        return JSON.parse(item) as T;
+    } catch (error) {
+        console.error(`Failed to parse '${key}' from localStorage`, error);
+        localStorage.removeItem(key);
+        return defaultValue;
+    }
+};
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }) => {
   const [view, setView] = useState<AdminView>('requests');
   const [gameRequests, setGameRequests] = useState<GameRequest[]>([]);
+  const [onlineFixRequests, setOnlineFixRequests] = useState<OnlineFixRequest[]>([]);
+  const [bypassRequests, setBypassRequests] = useState<BypassRequest[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  
+  // Game request approval state
   const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Online fix approval state
+  const [approvingFixId, setApprovingFixId] = useState<number | null>(null);
+  const [fixFile, setFixFile] = useState<File | null>(null);
+  const [artworkFile, setArtworkFile] = useState<File | null>(null);
+  const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
+  const [artworkUrl, setArtworkUrl] = useState('');
+
+  // Bypass request approval state
+  const [approvingBypassId, setApprovingBypassId] = useState<number | null>(null);
+  const [bypassFile, setBypassFile] = useState<File | null>(null);
+  const [bypassArtworkFile, setBypassArtworkFile] = useState<File | null>(null);
+  const [bypassArtworkPreview, setBypassArtworkPreview] = useState<string | null>(null);
+  const [bypassArtworkUrl, setBypassArtworkUrl] = useState('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load data from localStorage on mount
-    const storedRequests = JSON.parse(localStorage.getItem('gameRequests') || '[]');
-    const storedMessages = JSON.parse(localStorage.getItem('messages') || '[]');
-    setGameRequests(storedRequests.sort((a: GameRequest, b: GameRequest) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    const storedRequests = safeParse<GameRequest[]>('gameRequests', []);
+    const storedFixRequests = safeParse<OnlineFixRequest[]>('onlineFixRequests', []);
+    const storedBypassRequests = safeParse<BypassRequest[]>('bypassRequests', []);
+    const storedMessages = safeParse<Message[]>('messages', []);
+    
+    setGameRequests(storedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setOnlineFixRequests(storedFixRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setBypassRequests(storedBypassRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     setMessages(storedMessages);
   }, []);
   
@@ -32,6 +67,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedUser]);
 
+  const sendApprovalNotification = (userEmail: string, content: string) => {
+    const allMessages = safeParse<Message[]>('messages', []);
+    const newMessage: Message = {
+        id: Date.now(),
+        from: 'admin',
+        to: userEmail,
+        content,
+        timestamp: new Date().toISOString(),
+        isRead: false,
+    };
+    const updatedMessages = [...allMessages, newMessage];
+    setMessages(updatedMessages); 
+    localStorage.setItem('messages', JSON.stringify(updatedMessages));
+  };
 
   const conversations = messages.reduce((acc, msg) => {
     const otherParty = msg.from === 'admin' ? msg.to : msg.from;
@@ -70,50 +119,171 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     const file = event.target.files?.[0];
     if (!file || !approvingRequestId) return;
 
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
-      const fileUrl = loadEvent.target?.result as string;
+    // Create a temporary blob URL instead of reading the file into memory
+    const fileUrl = URL.createObjectURL(file);
       
-      // FIX: Explicitly cast 'approved' to the literal type 'approved' to match the GameRequest['status'] type.
-      // This resolves the TypeScript error where 'approved' was inferred as a generic string.
-      const updatedRequests = gameRequests.map(req =>
-        req.id === approvingRequestId 
-        ? { ...req, status: 'approved' as 'approved', fileName: file.name, fileUrl } 
+    const updatedRequests = gameRequests.map(req =>
+      req.id === approvingRequestId 
+      ? { ...req, status: 'approved' as 'approved', fileName: file.name, fileUrl } 
+      : req
+    );
+    setGameRequests(updatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    localStorage.setItem('gameRequests', JSON.stringify(updatedRequests));
+
+    const approvedRequest = updatedRequests.find(req => req.id === approvingRequestId);
+    if (approvedRequest) {
+      sendApprovalNotification(
+        approvedRequest.userEmail,
+        `Your game request for "${approvedRequest.gameTitle}" has been approved! You can now download it from your Library.`
+      );
+    }
+    
+    setApprovingRequestId(null);
+    
+    // Reset file input
+    event.target.value = '';
+  };
+
+  const handleArtworkUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setArtworkUrl(e.target.value);
+    if (e.target.value) {
+      setArtworkFile(null);
+      setArtworkPreview(null);
+    }
+  };
+
+  const handleArtworkChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setArtworkFile(file);
+      setArtworkPreview(URL.createObjectURL(file));
+      setArtworkUrl('');
+    }
+  };
+
+  const handleConfirmFixApproval = () => {
+    if (!fixFile || !approvingFixId || (!artworkPreview && !artworkUrl.trim())) return;
+
+    try {
+      const fileUrl = URL.createObjectURL(fixFile);
+      const imageUrl = artworkPreview || artworkUrl;
+
+      const finalUpdatedRequests = onlineFixRequests.map(req =>
+        req.id === approvingFixId 
+        ? { ...req, status: 'approved' as 'approved', fileName: fixFile.name, fileUrl, imageUrl }
         : req
       );
-      setGameRequests(updatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-      localStorage.setItem('gameRequests', JSON.stringify(updatedRequests));
-      setApprovingRequestId(null);
-    };
-    reader.readAsDataURL(file);
-    event.target.value = ''; // Reset file input
+      
+      setOnlineFixRequests(finalUpdatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      localStorage.setItem('onlineFixRequests', JSON.stringify(finalUpdatedRequests));
+      
+      const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingFixId);
+      if (approvedRequest) {
+        sendApprovalNotification(
+          approvedRequest.userEmail,
+          `Your request for an Online Fix for "${approvedRequest.gameTitle}" has been approved! It is now available on the Online Fix page.`
+        );
+      }
+
+      // Reset state
+      setApprovingFixId(null);
+      setFixFile(null);
+      setArtworkFile(null);
+      setArtworkPreview(null);
+      setArtworkUrl('');
+    } catch (error) {
+      console.error("Error creating object URLs:", error);
+    }
+  };
+
+  const handleBypassArtworkUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBypassArtworkUrl(e.target.value);
+    if (e.target.value) {
+      setBypassArtworkFile(null);
+      setBypassArtworkPreview(null);
+    }
+  };
+  
+  const handleBypassArtworkChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setBypassArtworkFile(file);
+      setBypassArtworkPreview(URL.createObjectURL(file));
+      setBypassArtworkUrl('');
+    }
+  };
+  
+  const handleConfirmBypassApproval = () => {
+    if (!bypassFile || !approvingBypassId || (!bypassArtworkPreview && !bypassArtworkUrl.trim())) return;
+
+    try {
+      const fileUrl = URL.createObjectURL(bypassFile);
+      const imageUrl = bypassArtworkPreview || bypassArtworkUrl;
+      
+      const finalUpdatedRequests = bypassRequests.map(req =>
+        req.id === approvingBypassId 
+        ? { ...req, status: 'approved' as 'approved', fileName: bypassFile.name, fileUrl, imageUrl }
+        : req
+      );
+      setBypassRequests(finalUpdatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      localStorage.setItem('bypassRequests', JSON.stringify(finalUpdatedRequests));
+      
+      const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingBypassId);
+      if (approvedRequest) {
+        let category = "Bypass section";
+        let cleanTitle = approvedRequest.gameTitle;
+      
+        if (cleanTitle.startsWith('Ubisoft Bypass: ')) {
+            category = "Ubisoft Bypass page";
+            cleanTitle = cleanTitle.replace('Ubisoft Bypass: ', '');
+        } else if (cleanTitle.startsWith('EA Bypass: ')) {
+            category = "EA Bypass page";
+            cleanTitle = cleanTitle.replace('EA Bypass: ', '');
+        } else if (cleanTitle.startsWith('Rockstar Bypass: ')) {
+            category = "Rockstar Bypass page";
+            cleanTitle = cleanTitle.replace('Rockstar Bypass: ', '');
+        } else if (cleanTitle.startsWith('Other Bypass: ')) {
+            category = "Other Bypass page";
+            cleanTitle = cleanTitle.replace('Other Bypass: ', '');
+        }
+        
+        sendApprovalNotification(
+            approvedRequest.userEmail,
+            `Your Bypass request for "${cleanTitle}" has been approved! It is now available on the ${category}.`
+        );
+      }
+
+      // Reset state
+      setApprovingBypassId(null);
+      setBypassFile(null);
+      setBypassArtworkFile(null);
+      setBypassArtworkPreview(null);
+      setBypassArtworkUrl('');
+    } catch (error) {
+      console.error("Error creating object URLs:", error);
+    }
   };
 
   const renderRequests = () => (
     <div className="space-y-4">
       <h2 className="text-3xl font-bold text-pink-400 tracking-widest uppercase">Game Requests</h2>
-       <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileSelect}
-        style={{ display: 'none' }}
-        />
+       <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} />
       {gameRequests.length > 0 ? (
         <ul className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
           {gameRequests.map(req => (
-            <li key={req.id} className="p-4 border-b border-pink-500/20 flex justify-between items-center gap-4">
-              <div>
+            <li key={req.id} className="p-4 border-b border-pink-500/20 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div className="flex-grow w-full">
                 <p className="font-bold text-lg text-white">{req.gameTitle}</p>
                 <p className="text-sm text-gray-400">Requested by: <span className="text-pink-400">{req.userEmail}</span></p>
                 <p className="text-xs text-gray-500">{new Date(req.timestamp).toLocaleString()}</p>
               </div>
-              <div className="text-right flex-shrink-0">
+              <div className="flex-shrink-0 w-full sm:w-auto">
                 {req.status === 'pending' ? (
-                  <NeonButton color="cyan" size="sm" onClick={() => triggerFileUpload(req.id)}>Approve</NeonButton>
+                  <NeonButton color="cyan" size="sm" onClick={() => triggerFileUpload(req.id)} fullWidth>Approve</NeonButton>
                 ) : (
-                  <span className="px-3 py-1.5 text-sm font-bold text-green-400 border-2 border-green-400/50 rounded-full bg-green-500/10">
-                    Approved
-                  </span>
+                  <div className="text-right">
+                    <span className="px-3 py-1.5 text-sm font-bold text-green-400 border-2 border-green-400/50 rounded-full bg-green-500/10 inline-block">Approved</span>
+                  </div>
                 )}
               </div>
             </li>
@@ -125,12 +295,165 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     </div>
   );
 
+  const renderOnlineFixRequests = () => (
+    <div className="space-y-4">
+      <h2 className="text-3xl font-bold text-purple-400 tracking-widest uppercase">Online Fix Requests</h2>
+      {onlineFixRequests.length > 0 ? (
+        <ul className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
+          {onlineFixRequests.map(req => (
+            <li key={req.id} className="p-4 border-b border-purple-500/20 transition-all duration-300">
+              {approvingFixId === req.id ? (
+                <div className="space-y-4 animate-fade-in">
+                  <div>
+                    <p className="font-bold text-lg text-white">{req.gameTitle}</p>
+                    <p className="text-sm text-gray-400">Approving request from: <span className="text-purple-400">{req.userEmail}</span></p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4 items-start">
+                    <div>
+                      <label className="block text-purple-300 text-sm font-bold mb-2">Upload ZIP File</label>
+                      <label htmlFor={`fix-file-upload-${req.id}`} className="w-full cursor-pointer bg-gray-700/50 p-3 rounded-lg border-2 border-dashed border-purple-500/30 text-center text-gray-400 hover:bg-gray-700 hover:border-purple-500 transition-colors">Click to select ZIP</label>
+                      <input id={`fix-file-upload-${req.id}`} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => setFixFile(e.target.files?.[0] || null)} />
+                      {fixFile && <p className="text-xs text-green-400 mt-2 truncate font-mono" title={fixFile.name}>Selected: {fixFile.name}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-purple-300 text-sm font-bold mb-2">Artwork</label>
+                      <label htmlFor={`artwork-upload-${req.id}`} className="w-full cursor-pointer bg-gray-700/50 p-3 rounded-lg border-2 border-dashed border-purple-500/30 text-center text-gray-400 hover:bg-gray-700 hover:border-purple-500 transition-colors block mb-2">
+                        {artworkFile ? artworkFile.name : 'Upload Image'}
+                      </label>
+                      <input id={`artwork-upload-${req.id}`} type="file" accept="image/*" className="hidden" onChange={handleArtworkChange} />
+                      <div className="text-center text-gray-500 my-2">OR</div>
+                      <input
+                        type="text"
+                        placeholder="Paste image URL"
+                        value={artworkUrl}
+                        onChange={handleArtworkUrlChange}
+                        className="w-full px-3 py-2 bg-gray-700/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
+                      />
+                      {(artworkPreview || artworkUrl) && (
+                        <img 
+                          src={artworkPreview || artworkUrl} 
+                          alt="Artwork preview" 
+                          className="mt-2 h-32 w-auto object-cover rounded-md border-2 border-purple-500/50" 
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    <NeonButton color="green" onClick={handleConfirmFixApproval} disabled={!fixFile || (!artworkFile && !artworkUrl.trim())}>Confirm & Approve</NeonButton>
+                    <button onClick={() => setApprovingFixId(null)} className="px-6 py-3 text-base bg-transparent border-2 border-red-400 text-red-400 rounded-md font-bold uppercase tracking-wider transition-all duration-300 hover:bg-red-400 hover:text-gray-900">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                  <div className="flex-grow w-full">
+                    <p className="font-bold text-lg text-white">{req.gameTitle}</p>
+                    <p className="text-sm text-gray-400">Requested by: <span className="text-purple-400">{req.userEmail}</span></p>
+                    <p className="text-xs text-gray-500">{new Date(req.timestamp).toLocaleString()}</p>
+                  </div>
+                  <div className="flex-shrink-0 w-full sm:w-auto">
+                    {req.status === 'pending' ? (
+                      <NeonButton color="purple" size="sm" onClick={() => { setApprovingFixId(req.id); setFixFile(null); setArtworkFile(null); setArtworkPreview(null); setArtworkUrl(''); }} fullWidth>Approve</NeonButton>
+                    ) : (
+                      <div className="text-right">
+                        <span className="px-3 py-1.5 text-sm font-bold text-green-400 border-2 border-green-400/50 rounded-full bg-green-500/10 inline-block">Approved</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-400">No online fix requests yet.</p>
+      )}
+    </div>
+  );
+
+  const renderBypassRequests = () => (
+    <div className="space-y-4">
+      <h2 className="text-3xl font-bold text-green-400 tracking-widest uppercase">Bypass Requests</h2>
+      {bypassRequests.length > 0 ? (
+        <ul className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
+          {bypassRequests.map(req => (
+            <li key={req.id} className="p-4 border-b border-green-500/20 transition-all duration-300">
+              {approvingBypassId === req.id ? (
+                <div className="space-y-4 animate-fade-in">
+                  <div>
+                    <p className="font-bold text-lg text-white">{req.gameTitle}</p>
+                    <p className="text-sm text-gray-400">Approving request from: <span className="text-green-400">{req.userEmail}</span></p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4 items-start">
+                    <div>
+                      <label className="block text-green-300 text-sm font-bold mb-2">Upload ZIP File</label>
+                      <label htmlFor={`bypass-file-upload-${req.id}`} className="w-full cursor-pointer bg-gray-700/50 p-3 rounded-lg border-2 border-dashed border-green-500/30 text-center text-gray-400 hover:bg-gray-700 hover:border-green-500 transition-colors">Click to select ZIP</label>
+                      <input id={`bypass-file-upload-${req.id}`} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => setBypassFile(e.target.files?.[0] || null)} />
+                      {bypassFile && <p className="text-xs text-cyan-400 mt-2 truncate font-mono" title={bypassFile.name}>Selected: {bypassFile.name}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-green-300 text-sm font-bold mb-2">Artwork</label>
+                      <label htmlFor={`bypass-artwork-upload-${req.id}`} className="w-full cursor-pointer bg-gray-700/50 p-3 rounded-lg border-2 border-dashed border-green-500/30 text-center text-gray-400 hover:bg-gray-700 hover:border-green-500 transition-colors block mb-2">
+                        {bypassArtworkFile ? bypassArtworkFile.name : 'Upload Image'}
+                      </label>
+                      <input id={`bypass-artwork-upload-${req.id}`} type="file" accept="image/*" className="hidden" onChange={handleBypassArtworkChange} />
+                      <div className="text-center text-gray-500 my-2">OR</div>
+                      <input
+                        type="text"
+                        placeholder="Paste image URL"
+                        value={bypassArtworkUrl}
+                        onChange={handleBypassArtworkUrlChange}
+                        className="w-full px-3 py-2 bg-gray-700/50 border-2 border-green-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
+                      />
+                      {(bypassArtworkPreview || bypassArtworkUrl) && (
+                        <img 
+                          src={bypassArtworkPreview || bypassArtworkUrl} 
+                          alt="Artwork preview" 
+                          className="mt-2 h-32 w-auto object-cover rounded-md border-2 border-green-500/50" 
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    <NeonButton color="green" onClick={handleConfirmBypassApproval} disabled={!bypassFile || (!bypassArtworkFile && !bypassArtworkUrl.trim())}>Confirm & Approve</NeonButton>
+                    <button onClick={() => setApprovingBypassId(null)} className="px-6 py-3 text-base bg-transparent border-2 border-red-400 text-red-400 rounded-md font-bold uppercase tracking-wider transition-all duration-300 hover:bg-red-400 hover:text-gray-900">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                  <div className="flex-grow w-full">
+                    <p className="font-bold text-lg text-white">{req.gameTitle}</p>
+                    <p className="text-sm text-gray-400">Requested by: <span className="text-green-400">{req.userEmail}</span></p>
+                    <p className="text-xs text-gray-500">{new Date(req.timestamp).toLocaleString()}</p>
+                  </div>
+                  <div className="flex-shrink-0 w-full sm:w-auto">
+                    {req.status === 'pending' ? (
+                      <NeonButton color="green" size="sm" onClick={() => { setApprovingBypassId(req.id); setBypassFile(null); setBypassArtworkFile(null); setBypassArtworkPreview(null); setBypassArtworkUrl(''); }} fullWidth>Approve</NeonButton>
+                    ) : (
+                      <div className="text-right">
+                        <span className="px-3 py-1.5 text-sm font-bold text-cyan-400 border-2 border-cyan-400/50 rounded-full bg-cyan-500/10 inline-block">Approved</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-400">No bypass requests yet.</p>
+      )}
+    </div>
+  );
+
   const renderMessages = () => (
     <div className="h-full flex flex-col">
       <h2 className="text-3xl font-bold text-cyan-400 tracking-widest uppercase mb-4">User Messages</h2>
-      <div className="flex-grow flex gap-4 overflow-hidden">
-        {/* Conversation List */}
-        <div className="w-1/3 bg-black/20 p-2 rounded-lg overflow-y-auto">
+      <div className="flex-grow flex flex-col lg:flex-row gap-4 overflow-hidden">
+        <div className="w-full lg:w-1/3 bg-black/20 p-2 rounded-lg overflow-y-auto h-48 lg:h-auto flex-shrink-0">
           {Object.keys(conversations).map(email => (
             <div
               key={email}
@@ -142,9 +465,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
             </div>
           ))}
         </div>
-        
-        {/* Message View */}
-        <div className="w-2/3 flex flex-col bg-black/20 p-4 rounded-lg">
+        <div className="w-full lg:w-2/3 flex flex-col bg-black/20 p-4 rounded-lg flex-grow">
           {selectedUser ? (
             <>
               <div className="flex-grow overflow-y-auto mb-4">
@@ -162,15 +483,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
                 ))}
                 <div ref={messagesEndRef} />
               </div>
-              <form onSubmit={handleReply} className="flex gap-2">
+              <form onSubmit={handleReply} className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                   placeholder={`Reply to ${selectedUser}...`}
-                  className="flex-grow px-4 py-2 bg-gray-900/70 border-2 border-cyan-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-grow w-full px-4 py-2 bg-gray-900/70 border-2 border-cyan-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
-                <NeonButton type="submit" color="cyan" size="md">Reply</NeonButton>
+                <div className="w-full sm:w-auto flex-shrink-0">
+                    <NeonButton type="submit" color="cyan" size="md" fullWidth>Reply</NeonButton>
+                </div>
               </form>
             </>
           ) : (
@@ -182,6 +505,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       </div>
     </div>
   );
+
+  const renderCurrentView = () => {
+    switch(view) {
+        case 'requests': return renderRequests();
+        case 'onlineFixes': return renderOnlineFixRequests();
+        case 'bypassRequests': return renderBypassRequests();
+        case 'messages': return renderMessages();
+        default: return renderRequests();
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -202,9 +535,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col md:flex-row gap-8">
         <aside className="md:w-64 flex-shrink-0">
-          <nav className="flex md:flex-col gap-2">
+          <nav className="flex flex-row md:flex-col gap-2">
             <button onClick={() => setView('requests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'requests' ? 'bg-pink-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Game Requests
+            </button>
+            <button onClick={() => setView('onlineFixes')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'onlineFixes' ? 'bg-purple-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+              Online Fix Requests
+            </button>
+            <button onClick={() => setView('bypassRequests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'bypassRequests' ? 'bg-green-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+              Bypass Requests
             </button>
             <button onClick={() => setView('messages')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'messages' ? 'bg-cyan-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Messages
@@ -212,7 +551,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
           </nav>
         </aside>
         <div className="flex-grow" style={{maxHeight: '75vh'}}>
-          {view === 'requests' ? renderRequests() : renderMessages()}
+          {renderCurrentView()}
         </div>
       </main>
     </div>

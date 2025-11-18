@@ -1,22 +1,36 @@
+
 import React, { useState, useEffect } from 'react';
 import NeonButton from './common/NeonButton';
 import UserIcon from './icons/UserIcon';
 import LockIcon from './icons/LockIcon';
 import LogoIcon from './icons/LogoIcon';
+import CalendarIcon from './icons/CalendarIcon'; // New icon
 import type { User } from '../types';
 
 interface LoginPageProps {
-  onLoginSuccess: (user: { email: string; role: 'user' | 'admin' }) => void;
+  onLoginSuccess: (user: User) => void;
+  onSignupSuccess: (user: User) => void;
 }
 
 const ADMIN_EMAIL = 'rafaproject06@gmail.com';
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('');
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }) => {
+  // Common state
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  
+  // Login state
+  const [identifier, setIdentifier] = useState(''); // Can be username or email
+
+  // Signup state
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [dob, setDob] = useState('');
+  const [email, setEmail] = useState(''); // Also used for 'forgot password'
+
+  // Forgot password state
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
@@ -26,7 +40,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   
   const getUsers = (): User[] => {
     const users = localStorage.getItem('users');
-    return users ? JSON.parse(users) : [];
+    if (!users) return [];
+    try {
+        return JSON.parse(users);
+    } catch (error) {
+        console.error("Failed to parse users from localStorage:", error);
+        localStorage.removeItem('users'); // Clear corrupted data
+        return [];
+    }
   };
 
   const saveUsers = (users: User[]) => {
@@ -41,53 +62,70 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             setError('Please enter your email address.');
             return;
         }
-        // In a real app, this would trigger a password reset email.
         console.log('Password reset requested for:', email);
         setResetEmailSent(true);
         setError('');
         return;
     }
 
-    if (!email || !password) {
+    if (mode === 'signup') {
+        if (!name || !username || !dob || !email || !password || !confirmPassword) {
+            setError('Please fill in all fields.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('Passwords do not match.');
+            return;
+        }
+        const users = getUsers();
+        if (users.some(user => user.email.toLowerCase() === email.toLowerCase())) {
+            setError('An account with this email already exists.');
+            return;
+        }
+        if (users.some(user => user.username.toLowerCase() === username.toLowerCase())) {
+            setError('This username is already taken.');
+            return;
+        }
+        const newUser: User = { name, username, dob, email, password };
+        saveUsers([...users, newUser]);
+        console.log('Account created for:', email);
+        setError('');
+        onSignupSuccess(newUser); // Trigger the T&C flow
+        return;
+    }
+
+    // Login mode
+    if (!identifier || !password) {
       setError('Please fill in all fields.');
       return;
     }
     
-    if (email.toLowerCase() === ADMIN_EMAIL && mode === 'login') {
-        // This is a simplified admin login check. In a real app, password would be verified.
+    if (identifier.toLowerCase() === ADMIN_EMAIL) {
         console.log('Admin logged in');
         setError('');
-        onLoginSuccess({ email, role: 'admin' });
+        const adminUser: User = {
+            name: 'Admin',
+            username: 'admin',
+            dob: 'N/A',
+            email: ADMIN_EMAIL,
+            password: '', // Password not checked for admin in this simplified version
+        };
+        onLoginSuccess(adminUser);
         return;
     }
 
     const users = getUsers();
-    const userExists = users.find(user => user.email.toLowerCase() === email.toLowerCase());
+    const user = users.find(u => 
+        (u.email.toLowerCase() === identifier.toLowerCase() || u.username.toLowerCase() === identifier.toLowerCase())
+    );
 
-    if (mode === 'signup') {
-      if (password !== confirmPassword) {
-        setError('Passwords do not match.');
-        return;
-      }
-      if (userExists) {
-        setError('An account with this email already exists.');
-        return;
-      }
-      const newUser: User = { email, password }; // In real app, hash password
-      saveUsers([...users, newUser]);
-      console.log('Account created for:', email);
-      setError('');
-      onLoginSuccess({ email, role: 'user' });
-
-    } else { // Login mode
-      if (!userExists || userExists.password !== password) {
-        setError('Invalid email or password.');
-        return;
-      }
-      console.log('Logged in as:', email);
-      setError('');
-      onLoginSuccess({ email, role: 'user' });
+    if (!user || user.password !== password) {
+      setError('Invalid username/email or password.');
+      return;
     }
+    console.log('Logged in as:', user.email);
+    setError('');
+    onLoginSuccess(user);
   };
   
   const isLogin = mode === 'login';
@@ -96,18 +134,42 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const renderMainForm = () => (
     <>
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400">
-            <UserIcon className="w-5 h-5" />
-          </span>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
-          />
-        </div>
+        {isLogin && (
+            <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400">
+                <UserIcon className="w-5 h-5" />
+            </span>
+            <input
+                type="text"
+                placeholder="Username or Email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
+            />
+            </div>
+        )}
+
+        {isSignup && (
+            <>
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"><UserIcon className="w-5 h-5" /></span>
+                    <input type="text" placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300" />
+                </div>
+                 <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"><UserIcon className="w-5 h-5" /></span>
+                    <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300" />
+                </div>
+                 <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"><CalendarIcon className="w-5 h-5" /></span>
+                    <input type="date" placeholder="Date of Birth" value={dob} onChange={(e) => setDob(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300" />
+                </div>
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400"><UserIcon className="w-5 h-5" /></span>
+                    <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300" />
+                </div>
+            </>
+        )}
+        
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400">
             <LockIcon className="w-5 h-5" />
@@ -207,9 +269,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <div className="w-full max-w-md">
           <div className="relative bg-gray-900/50 backdrop-blur-sm border-2 border-cyan-500/50 rounded-2xl shadow-[0_0_20px_theme(colors.cyan.500/50%)] overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-full bg-grid-purple-500/[0.2] [mask-image:linear-gradient(to_bottom,white,transparent,transparent)]"></div>
-            <div className="p-8 md:p-12 relative z-10">
-              <div className="flex justify-center mb-8">
-                <LogoIcon className="w-48 h-auto" />
+            <div className="p-6 sm:p-8 md:p-12 relative z-10">
+              <div className="flex justify-center mb-6 sm:mb-8">
+                <LogoIcon className="w-32 sm:w-48 h-auto" />
               </div>
               {mode === 'forgot' ? renderForgotPassword() : renderMainForm()}
             </div>
