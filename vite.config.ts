@@ -1,6 +1,7 @@
-import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+// Fix: Add URL and fileURLToPath for ESM-compatible path resolution.
+import { fileURLToPath, URL } from 'url';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -17,7 +18,8 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          // Fix: Replace __dirname with an ESM-compatible equivalent.
+          '@': fileURLToPath(new URL('.', import.meta.url)),
         }
       }
     };
