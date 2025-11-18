@@ -14,6 +14,7 @@ import EABypass from './bypasses/EABypass';
 import RockstarBypass from './bypasses/RockstarBypass';
 import OtherBypass from './bypasses/OtherBypass';
 import Appreciation from './Appreciation';
+import PrivacyPolicy from './PrivacyPolicy';
 import LogoIcon from './icons/LogoIcon';
 import HelpIcon from './icons/HelpIcon';
 import InboxIcon from './icons/InboxIcon';
@@ -24,6 +25,7 @@ import OnlineFixIcon from './icons/OnlineFixIcon';
 import BypassIcon from './icons/BypassIcon';
 import AvailableGamesIcon from './icons/AvailableGamesIcon';
 import HeartIcon from './icons/HeartIcon';
+import PrivacyPolicyIcon from './icons/PrivacyPolicyIcon';
 import type { User, Message as MessageType } from '../types';
 
 interface DashboardProps {
@@ -31,7 +33,7 @@ interface DashboardProps {
   onAdminLoginRequest: () => void;
 }
 
-type View = 'home' | 'request' | 'fix' | 'bypass' | 'help' | 'inbox' | 'library' | 'message' | 'available' | 'ubisoftBypass' | 'eaBypass' | 'rockstarBypass' | 'otherBypass' | 'appreciation';
+type View = 'home' | 'request' | 'fix' | 'bypass' | 'help' | 'inbox' | 'library' | 'message' | 'available' | 'ubisoftBypass' | 'eaBypass' | 'rockstarBypass' | 'otherBypass' | 'appreciation' | 'privacy';
 
 const HeaderButton: React.FC<{ children: React.ReactNode; icon: React.ReactNode; onClick?: () => void, notificationCount?: number }> = ({ children, icon, onClick, notificationCount = 0 }) => (
   <button onClick={onClick} className="relative flex items-center gap-2.5 text-gray-300 hover:text-white transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-white/10">
@@ -228,6 +230,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAdminLoginRequest 
       case 'appreciation':
         content = <Appreciation />;
         break;
+      case 'privacy':
+        content = <PrivacyPolicy />;
+        break;
       case 'home':
       default:
         return (
@@ -329,6 +334,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAdminLoginRequest 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center">
         {renderContent()}
       </main>
+
+      <footer className="w-full bg-gray-900/50 border-t-2 border-purple-500/30 mt-auto py-6">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-400 text-sm">
+            <div className="flex justify-center items-center">
+                <button onClick={() => handleViewChange('privacy')} className="flex items-center gap-2 hover:text-white transition-colors">
+                    <PrivacyPolicyIcon className="w-5 h-5" />
+                    <span>Privacy Policy</span>
+                </button>
+            </div>
+            <p className="mt-4 opacity-70">
+                &copy; {new Date().getFullYear()} Tylock Games. All rights reserved.
+            </p>
+        </div>
+      </footer>
     </div>
   );
 };
