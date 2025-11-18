@@ -1,4 +1,3 @@
-
 export interface Game {
   id: number;
   title: string;
@@ -8,8 +7,11 @@ export interface Game {
 }
 
 export interface User {
+  name: string;
+  username: string;
+  dob: string; // Date of Birth
   email: string;
-  password?: string; // Password is not always needed, e.g., when just identifying the user
+  password: string;
 }
 
 export interface GameRequest {
@@ -20,6 +22,28 @@ export interface GameRequest {
   status: 'pending' | 'approved';
   fileName?: string;
   fileUrl?: string;
+}
+
+export interface OnlineFixRequest {
+  id: number;
+  userEmail: string;
+  gameTitle: string;
+  timestamp: string;
+  status: 'pending' | 'approved';
+  fileName?: string;
+  fileUrl?: string;
+  imageUrl?: string;
+}
+
+export interface BypassRequest {
+  id: number;
+  userEmail: string;
+  gameTitle: string;
+  timestamp: string;
+  status: 'pending' | 'approved';
+  fileName?: string;
+  fileUrl?: string;
+  imageUrl?: string;
 }
 
 export interface Message {

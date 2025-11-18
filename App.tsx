@@ -1,42 +1,82 @@
+
 import React, { useState, useEffect } from 'react';
-import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
+import LoginPage from './components/LoginPage';
 import AdminDashboard from './components/AdminDashboard';
+import TermsAndConditionsPopup from './components/TermsAndConditionsPopup';
 import type { User } from './types';
 
-interface CurrentUser extends User {
-  role: 'user' | 'admin';
-}
+const ADMIN_EMAIL = 'rafaproject06@gmail.com';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<Omit<User, 'password'> | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // For T&C flow after signup
+  const [showTerms, setShowTerms] = useState(false);
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Check for a logged-in user in localStorage on initial load
-    const loggedInUser = localStorage.getItem('currentUser');
-    if (loggedInUser) {
-      setCurrentUser(JSON.parse(loggedInUser));
+    try {
+      const storedUser = sessionStorage.getItem('currentUser');
+      if (storedUser) {
+        const user: User = JSON.parse(storedUser);
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        if (user.email.toLowerCase() === ADMIN_EMAIL) {
+          setIsAdmin(true);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to parse user from sessionStorage:", error);
+      sessionStorage.removeItem('currentUser');
     }
   }, []);
 
-  const handleLoginSuccess = (user: CurrentUser) => {
+  const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
-    localStorage.setItem('currentUser', JSON.stringify(user));
+    setIsLoggedIn(true);
+    sessionStorage.setItem('currentUser', JSON.stringify(user));
+    if (user.email.toLowerCase() === ADMIN_EMAIL) {
+      setIsAdmin(true);
+    }
+  };
+  
+  const handleSignupSuccess = (user: User) => {
+    // Don't log in immediately, show T&C first
+    setPendingUser(user);
+    setShowTerms(true);
+  };
+  
+  const handleAcceptTerms = () => {
+    if (pendingUser) {
+        handleLoginSuccess(pendingUser);
+    }
+    setShowTerms(false);
+    setPendingUser(null);
   };
 
   const handleLogout = () => {
+    setIsLoggedIn(false);
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
+    setIsAdmin(false);
+    sessionStorage.removeItem('currentUser');
   };
 
   const renderContent = () => {
-    if (!currentUser) {
-      return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    if (showTerms && pendingUser) {
+        return <TermsAndConditionsPopup onAccept={handleAcceptTerms} />;
     }
-    if (currentUser.role === 'admin') {
-      return <AdminDashboard currentUser={currentUser} onLogout={handleLogout} />;
+    
+    if (isLoggedIn && currentUser) {
+      if (isAdmin) {
+        return <AdminDashboard currentUser={currentUser} onLogout={handleLogout} />;
+      }
+      return <Dashboard currentUser={currentUser} onLogout={handleLogout} />;
     }
-    return <Dashboard currentUser={currentUser} onLogout={handleLogout} />;
+    
+    return <LoginPage onLoginSuccess={handleLoginSuccess} onSignupSuccess={handleSignupSuccess} />;
   };
 
   return (

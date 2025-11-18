@@ -13,7 +13,12 @@ const AvailableGames: React.FC = () => {
   const [approvedGames, setApprovedGames] = useState<GameRequest[]>([]);
 
   useEffect(() => {
-    const allRequests: GameRequest[] = JSON.parse(localStorage.getItem('gameRequests') || '[]');
+    let allRequests: GameRequest[] = [];
+    try {
+        allRequests = JSON.parse(localStorage.getItem('gameRequests') || '[]');
+    } catch (error) {
+        console.error("Failed to parse game requests from localStorage:", error);
+    }
     const filteredGames = allRequests.filter(req => req.status === 'approved' && req.fileUrl);
     setApprovedGames(filteredGames);
   }, []);

@@ -1,7 +1,6 @@
-
 import React from 'react';
 
-const UserIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const UserIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"

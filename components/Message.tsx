@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Message } from '../types';
+import type { Message as MessageType } from '../types';
 import NeonButton from './common/NeonButton';
 
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -12,14 +12,21 @@ interface MessageProps {
     userEmail: string;
 }
 
-const MessageComponent: React.FC<MessageProps> = ({ userEmail }) => {
-    const [messages, setMessages] = useState<Message[]>([]);
+const Message: React.FC<MessageProps> = ({ userEmail }) => {
+    const [messages, setMessages] = useState<MessageType[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const getAllMessages = (): Message[] => JSON.parse(localStorage.getItem('messages') || '[]');
+    const getAllMessages = (): MessageType[] => {
+        try {
+            return JSON.parse(localStorage.getItem('messages') || '[]');
+        } catch (error) {
+            console.error("Failed to parse messages from localStorage:", error);
+            return [];
+        }
+    };
     
-    const saveAllMessages = (allMessages: Message[]) => {
+    const saveAllMessages = (allMessages: MessageType[]) => {
         localStorage.setItem('messages', JSON.stringify(allMessages));
     };
 
@@ -40,7 +47,7 @@ const MessageComponent: React.FC<MessageProps> = ({ userEmail }) => {
         if (newMessage.trim() === '') return;
 
         const allMessages = getAllMessages();
-        const message: Message = {
+        const message: MessageType = {
             id: Date.now(),
             from: userEmail,
             to: 'admin',
@@ -56,7 +63,7 @@ const MessageComponent: React.FC<MessageProps> = ({ userEmail }) => {
     };
 
     return (
-        <section className="bg-gray-800/50 p-8 rounded-lg border border-red-500/30 h-full w-full max-w-4xl mx-auto flex flex-col" style={{maxHeight: '70vh'}}>
+        <section className="bg-gray-800/50 p-4 sm:p-8 rounded-lg border border-red-500/30 w-full max-w-4xl mx-auto flex flex-col h-[75vh] sm:h-[70vh]">
             <SectionHeader>Message Admin</SectionHeader>
             <div className="flex-grow bg-black/20 p-4 rounded-lg overflow-y-auto mb-4">
                 {messages.length > 0 ? (
@@ -77,7 +84,7 @@ const MessageComponent: React.FC<MessageProps> = ({ userEmail }) => {
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={handleSendMessage} className="flex gap-4">
+            <form onSubmit={handleSendMessage} className="flex flex-col sm:flex-row gap-4">
                 <input
                     type="text"
                     value={newMessage}
@@ -85,12 +92,14 @@ const MessageComponent: React.FC<MessageProps> = ({ userEmail }) => {
                     placeholder="Type your message..."
                     className="flex-grow px-4 py-3 bg-gray-900/70 border-2 border-red-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-300"
                 />
-                <NeonButton type="submit" color="red">
-                    Send
-                </NeonButton>
+                <div className="w-full sm:w-auto">
+                    <NeonButton type="submit" color="red" fullWidth>
+                        Send
+                    </NeonButton>
+                </div>
             </form>
         </section>
     );
 };
 
-export default MessageComponent;
+export default Message;
