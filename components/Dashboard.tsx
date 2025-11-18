@@ -28,7 +28,7 @@ import type { User, Message as MessageType } from '../types';
 
 interface DashboardProps {
   currentUser: Omit<User, 'password'>;
-  onLogout: () => void;
+  onAdminLoginRequest: () => void;
 }
 
 type View = 'home' | 'request' | 'fix' | 'bypass' | 'help' | 'inbox' | 'library' | 'message' | 'available' | 'ubisoftBypass' | 'eaBypass' | 'rockstarBypass' | 'otherBypass' | 'appreciation';
@@ -143,7 +143,7 @@ const AdSlider: React.FC = () => {
     );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAdminLoginRequest }) => {
   const [activeView, setActiveView] = useState<View>('home');
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -301,10 +301,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout }) => {
         <div className="container mx-auto px-2 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-20">
             <div className="flex items-center gap-4">
-              <a href="#" aria-label="Dashboard Home" onClick={(e) => { e.preventDefault(); setActiveView('home'); }}>
+              <button 
+                aria-label="Admin Access" 
+                onClick={(e) => { e.preventDefault(); onAdminLoginRequest(); }}
+                className="cursor-pointer"
+                title="Admin Access"
+              >
                 <LogoIcon className="h-10 w-auto" />
-              </a>
-              <span className="text-2xl font-bold tracking-wider text-white hidden md:block">TYLOCK GAMES</span>
+              </button>
+              <button onClick={() => setActiveView('home')} className="text-2xl font-bold tracking-wider text-white hidden md:block">TYLOCK GAMES</button>
             </div>
             <div className="flex items-center gap-1 sm:gap-3">
               <div className="flex items-center gap-2 px-3 py-1.5 border border-gray-600 rounded-full bg-black/20">
@@ -316,12 +321,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout }) => {
               <HeaderButton icon={<InboxIcon className="w-6 h-6" />} onClick={() => handleViewChange('inbox')} notificationCount={unreadMessages}>Inbox</HeaderButton>
               <HeaderButton icon={<LibraryIcon className="w-6 h-6" />} onClick={() => handleViewChange('library')}>Library</HeaderButton>
               <HeaderButton icon={<MessageIcon className="w-6 h-6" />} onClick={() => handleViewChange('message')} notificationCount={unreadMessages}>Message</HeaderButton>
-              <button onClick={onLogout} className="ml-2 px-3 py-1.5 text-sm font-bold bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-                <span className="hidden sm:inline">Logout</span>
-              </button>
             </div>
           </div>
         </div>
