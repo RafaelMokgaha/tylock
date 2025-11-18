@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-        allowedHosts: ['tylock.onrender.com']   // ✅ FIXED FOR RENDER
       },
       plugins: [react()],
       define: {

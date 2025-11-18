@@ -18,14 +18,7 @@ const RequestGames: React.FC<RequestGamesProps> = ({ userEmail }) => {
 
   const getGameRequests = (): GameRequest[] => {
     const requests = localStorage.getItem('gameRequests');
-    if (!requests) return [];
-    try {
-        return JSON.parse(requests);
-    } catch (error) {
-        console.error("Failed to parse gameRequests from localStorage:", error);
-        localStorage.removeItem('gameRequests');
-        return [];
-    }
+    return requests ? JSON.parse(requests) : [];
   };
 
   const saveGameRequests = (requests: GameRequest[]) => {
@@ -52,7 +45,7 @@ const RequestGames: React.FC<RequestGamesProps> = ({ userEmail }) => {
   };
 
   return (
-    <section className="bg-gray-800/50 p-6 sm:p-8 rounded-lg border border-pink-500/30 h-full flex flex-col w-full max-w-2xl mx-auto">
+    <section className="bg-gray-800/50 p-8 rounded-lg border border-pink-500/30 h-full flex flex-col w-full max-w-2xl mx-auto">
       <SectionHeader>Request a Game</SectionHeader>
       <p className="text-gray-400 mb-6">Can't find what you're looking for? Let us know!</p>
       {submitted ? (

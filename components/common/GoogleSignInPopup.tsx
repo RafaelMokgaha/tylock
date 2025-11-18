@@ -30,14 +30,7 @@ const GoogleSignInPopup: React.FC<GoogleSignInPopupProps> = ({ onClose, onLoginS
 
     if (!userExists) {
         // If user doesn't exist, create a new account for them
-        // FIX: The User type requires properties `name`, `username`, `dob`, and `password`. Added these with sensible defaults for a Google Sign-In user.
-        const newUser: User = {
-            name: selectedUser.name,
-            username: selectedUser.email.split('@')[0],
-            dob: '',
-            email: selectedUser.email,
-            password: '', // No password needed for Google Sign-In
-        };
+        const newUser: User = { email: selectedUser.email }; // No password needed for Google Sign-In
         saveUsers([...users, newUser]);
         console.log('New account created via Google Sign-In for:', selectedUser.email);
     } else {

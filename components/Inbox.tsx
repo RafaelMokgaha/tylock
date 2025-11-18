@@ -25,21 +25,15 @@ const Inbox: React.FC<InboxProps> = ({ userEmail }) => {
     const [messages, setMessages] = useState<Message[]>([]);
 
     useEffect(() => {
-        try {
-            const allMessages: Message[] = JSON.parse(localStorage.getItem('messages') || '[]');
-            const userMessages = allMessages
-                .filter(msg => msg.to === userEmail && msg.from === 'admin')
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setMessages(userMessages);
-        } catch (error) {
-            console.error("Failed to parse messages from localStorage:", error);
-            localStorage.removeItem('messages');
-            setMessages([]);
-        }
+        const allMessages: Message[] = JSON.parse(localStorage.getItem('messages') || '[]');
+        const userMessages = allMessages
+            .filter(msg => msg.to === userEmail && msg.from === 'admin')
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setMessages(userMessages);
     }, [userEmail]);
 
     return (
-        <section className="bg-gray-800/50 p-6 sm:p-8 rounded-lg border border-blue-500/30 w-full max-w-4xl mx-auto">
+        <section className="bg-gray-800/50 p-8 rounded-lg border border-blue-500/30 w-full max-w-4xl mx-auto">
         <SectionHeader>Inbox</SectionHeader>
         {messages.length > 0 ? (
             <div>
