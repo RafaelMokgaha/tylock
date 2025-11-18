@@ -35,11 +35,16 @@ const App: React.FC = () => {
   }, []);
 
   const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
-    setIsLoggedIn(true);
-    sessionStorage.setItem('currentUser', JSON.stringify(user));
-    if (user.email.toLowerCase() === ADMIN_EMAIL) {
-      setIsAdmin(true);
+    try {
+        sessionStorage.setItem('currentUser', JSON.stringify(user));
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        if (user.email.toLowerCase() === ADMIN_EMAIL) {
+          setIsAdmin(true);
+        }
+    } catch (error) {
+        console.error("Could not save session storage item:", error);
+        alert("Login failed. Could not save your session. Please ensure your browser allows website data/cookies and try again.");
     }
   };
   
@@ -58,10 +63,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    try {
+        sessionStorage.removeItem('currentUser');
+    } catch (error) {
+        console.error("Could not remove session storage item:", error);
+    }
     setIsLoggedIn(false);
     setCurrentUser(null);
     setIsAdmin(false);
-    sessionStorage.removeItem('currentUser');
   };
 
   const renderContent = () => {

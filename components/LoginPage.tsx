@@ -44,12 +44,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }
         return users ? JSON.parse(users) : [];
     } catch (error) {
         console.error("Failed to parse users from localStorage:", error);
-        return [];
+        throw new Error("Could not access user data. Your browser might be blocking storage.");
     }
   };
 
   const saveUsers = (users: User[]) => {
-    localStorage.setItem('users', JSON.stringify(users));
+    try {
+        localStorage.setItem('users', JSON.stringify(users));
+    } catch (error) {
+        console.error("Failed to save users to localStorage:", error);
+        throw new Error("Could not save user data. Your browser might be blocking storage.");
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -65,6 +70,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }
         setError('');
         return;
     }
+    
+    let users: User[];
+    try {
+        users = getUsers();
+    } catch (e) {
+        setError((e as Error).message);
+        return;
+    }
 
     if (mode === 'signup') {
         if (!name || !username || !dob || !email || !password || !confirmPassword) {
@@ -75,7 +88,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }
             setError('Passwords do not match.');
             return;
         }
-        const users = getUsers();
         if (users.some(user => user.email.toLowerCase() === email.toLowerCase())) {
             setError('An account with this email already exists.');
             return;
@@ -85,10 +97,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }
             return;
         }
         const newUser: User = { name, username, dob, email, password };
-        saveUsers([...users, newUser]);
-        console.log('Account created for:', email);
-        setError('');
-        onSignupSuccess(newUser); // Trigger the T&C flow
+        try {
+            saveUsers([...users, newUser]);
+            console.log('Account created for:', email);
+            setError('');
+            onSignupSuccess(newUser); // Trigger the T&C flow
+        } catch (err) {
+            console.error(err);
+            setError("Could not create account. Please ensure your browser allows website data storage and try again.");
+        }
         return;
     }
 
@@ -112,7 +129,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onSignupSuccess }
         return;
     }
 
-    const users = getUsers();
     const user = users.find(u => 
         (u.email.toLowerCase() === identifier.toLowerCase() || u.username.toLowerCase() === identifier.toLowerCase())
     );
