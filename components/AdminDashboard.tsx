@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { User, GameRequest, Message, OnlineFixRequest, BypassRequest, VisitorLog } from '../types';
 import LogoIcon from './icons/LogoIcon';
 import NeonButton from './common/NeonButton';
@@ -21,6 +21,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
   const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   
   // Game request approval state
   const [approvingRequestId, setApprovingRequestId] = useState<number | null>(null);
@@ -44,7 +45,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
 
   const getStoredData = <T,>(key: string): T[] => {
     try {
-      return JSON.parse(localStorage.getItem(key) || '[]');
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error(`Failed to parse ${key} from localStorage:`, error);
       return [];
@@ -52,7 +54,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
   };
 
   // Polling function to keep data fresh
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     const storedRequests = getStoredData<GameRequest>('gameRequests');
     const storedFixRequests = getStoredData<OnlineFixRequest>('onlineFixRequests');
     const storedBypassRequests = getStoredData<BypassRequest>('bypassRequests');
@@ -77,7 +79,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     });
 
     setMessages(prev => {
-        // We don't sort messages here as the UI handles grouping and sorting by conversation
         return JSON.stringify(prev) === JSON.stringify(storedMessages) ? prev : storedMessages;
     });
 
@@ -85,18 +86,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         const sorted = [...storedLogs].sort(sortDesc);
         return JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted;
     });
-  };
+    
+    setLastRefreshed(new Date());
+  }, []);
 
   useEffect(() => {
     refreshData(); // Initial load
-    const intervalId = setInterval(refreshData, 2000); // Poll every 2 seconds for changes
+    const intervalId = setInterval(refreshData, 2000); // Poll every 2 seconds
 
-    return () => clearInterval(intervalId);
-  }, []);
+    // Listen for storage changes in other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+        refreshData();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        clearInterval(intervalId);
+        window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [refreshData]);
   
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedUser]);
+
+  // Simulation Helper for Testing
+  const simulateIncomingData = () => {
+    const randomId = Math.floor(Math.random() * 1000);
+    
+    // Simulate Visitor
+    const newLog: VisitorLog = {
+        id: Date.now(),
+        username: `TestUser_${randomId}`,
+        timestamp: new Date().toISOString()
+    };
+    const currentLogs = getStoredData<VisitorLog>('visitorLogs');
+    localStorage.setItem('visitorLogs', JSON.stringify([...currentLogs, newLog]));
+
+    // Simulate Request
+    const newReq: GameRequest = {
+        id: Date.now(),
+        userEmail: `TestUser_${randomId}@example.com`,
+        gameTitle: `Simulated Request ${randomId}`,
+        timestamp: new Date().toISOString(),
+        status: 'pending'
+    };
+    const currentReqs = getStoredData<GameRequest>('gameRequests');
+    localStorage.setItem('gameRequests', JSON.stringify([...currentReqs, newReq]));
+
+    refreshData();
+    alert(`Simulated "TestUser_${randomId}" login and request. Check logs and requests tab.`);
+  };
 
   const sendApprovalNotification = (userEmail: string, content: string) => {
     const allMessages = getStoredData<Message>('messages');
@@ -109,9 +149,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         isRead: false,
     };
     const updatedMessages = [...allMessages, newMessage];
-    setMessages(updatedMessages); 
     localStorage.setItem('messages', JSON.stringify(updatedMessages));
-    refreshData(); // Force immediate refresh
+    refreshData(); 
   };
 
   const conversations = messages.reduce((acc, msg) => {
@@ -127,6 +166,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     e.preventDefault();
     if (!replyContent.trim() || !selectedUser) return;
 
+    const allMessages = getStoredData<Message>('messages');
     const newReply: Message = {
       id: Date.now(),
       from: 'admin',
@@ -136,11 +176,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       isRead: false,
     };
 
-    const updatedMessages = [...messages, newReply];
-    setMessages(updatedMessages);
+    const updatedMessages = [...allMessages, newReply];
     localStorage.setItem('messages', JSON.stringify(updatedMessages));
     setReplyContent('');
-    refreshData(); // Force immediate refresh
+    refreshData();
   };
 
   const triggerFileUpload = (requestId: number) => {
@@ -152,15 +191,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     const file = event.target.files?.[0];
     if (!file || !approvingRequestId) return;
 
-    // Create a temporary blob URL instead of reading the file into memory
     const fileUrl = URL.createObjectURL(file);
+    const currentReqs = getStoredData<GameRequest>('gameRequests');
       
-    const updatedRequests = gameRequests.map(req =>
+    const updatedRequests = currentReqs.map(req =>
       req.id === approvingRequestId 
       ? { ...req, status: 'approved' as 'approved', fileName: file.name, fileUrl } 
       : req
     );
-    setGameRequests([...updatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    
     localStorage.setItem('gameRequests', JSON.stringify(updatedRequests));
 
     const approvedRequest = updatedRequests.find(req => req.id === approvingRequestId);
@@ -172,10 +211,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     }
     
     setApprovingRequestId(null);
-    
-    // Reset file input
     event.target.value = '';
-    refreshData(); // Force immediate refresh
+    refreshData();
   };
 
   const handleArtworkUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,14 +238,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     try {
       const fileUrl = URL.createObjectURL(fixFile);
       const imageUrl = artworkPreview || artworkUrl;
+      const currentReqs = getStoredData<OnlineFixRequest>('onlineFixRequests');
 
-      const finalUpdatedRequests = onlineFixRequests.map(req =>
+      const finalUpdatedRequests = currentReqs.map(req =>
         req.id === approvingFixId 
         ? { ...req, status: 'approved' as 'approved', fileName: fixFile.name, fileUrl, imageUrl }
         : req
       );
       
-      setOnlineFixRequests([...finalUpdatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       localStorage.setItem('onlineFixRequests', JSON.stringify(finalUpdatedRequests));
       
       const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingFixId);
@@ -219,13 +256,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         );
       }
 
-      // Reset state
       setApprovingFixId(null);
       setFixFile(null);
       setArtworkFile(null);
       setArtworkPreview(null);
       setArtworkUrl('');
-      refreshData(); // Force immediate refresh
+      refreshData();
     } catch (error) {
       console.error("Error creating object URLs:", error);
     }
@@ -254,13 +290,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     try {
       const fileUrl = URL.createObjectURL(bypassFile);
       const imageUrl = bypassArtworkPreview || bypassArtworkUrl;
+      const currentReqs = getStoredData<BypassRequest>('bypassRequests');
       
-      const finalUpdatedRequests = bypassRequests.map(req =>
+      const finalUpdatedRequests = currentReqs.map(req =>
         req.id === approvingBypassId 
         ? { ...req, status: 'approved' as 'approved', fileName: bypassFile.name, fileUrl, imageUrl }
         : req
       );
-      setBypassRequests([...finalUpdatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       localStorage.setItem('bypassRequests', JSON.stringify(finalUpdatedRequests));
       
       const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingBypassId);
@@ -288,13 +324,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         );
       }
 
-      // Reset state
       setApprovingBypassId(null);
       setBypassFile(null);
       setBypassArtworkFile(null);
       setBypassArtworkPreview(null);
       setBypassArtworkUrl('');
-      refreshData(); // Force immediate refresh
+      refreshData();
     } catch (error) {
       console.error("Error creating object URLs:", error);
     }
@@ -305,6 +340,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         try {
             localStorage.removeItem('visitorLogs');
             setVisitorLogs([]);
+            refreshData();
         } catch (error) {
             console.error("Failed to clear visitor logs from localStorage:", error);
         }
@@ -337,7 +373,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
           ))}
         </ul>
       ) : (
-        <p className="text-gray-400">No game requests yet.</p>
+        <div className="bg-black/20 p-6 rounded-lg text-center">
+            <p className="text-gray-400 mb-4">No game requests yet.</p>
+            <p className="text-sm text-gray-500">Tip: Try using the "Simulate Data" button to verify the panel works.</p>
+        </div>
       )}
     </div>
   );
@@ -501,16 +540,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       <h2 className="text-3xl font-bold text-cyan-400 tracking-widest uppercase mb-4">User Messages</h2>
       <div className="flex-grow flex flex-col lg:flex-row gap-4 overflow-hidden">
         <div className="w-full lg:w-1/3 bg-black/20 p-2 rounded-lg overflow-y-auto h-48 lg:h-auto flex-shrink-0">
-          {Object.keys(conversations).map(email => (
-            <div
-              key={email}
-              onClick={() => setSelectedUser(email)}
-              className={`p-3 rounded-lg cursor-pointer ${selectedUser === email ? 'bg-cyan-500/30' : 'hover:bg-gray-700/50'}`}
-            >
-              <p className="font-bold text-white truncate">{email}</p>
-              <p className="text-sm text-gray-400 truncate">{conversations[email].slice(-1)[0].content}</p>
-            </div>
-          ))}
+          {Object.keys(conversations).length > 0 ? (
+            Object.keys(conversations).map(email => (
+                <div
+                key={email}
+                onClick={() => setSelectedUser(email)}
+                className={`p-3 rounded-lg cursor-pointer ${selectedUser === email ? 'bg-cyan-500/30' : 'hover:bg-gray-700/50'}`}
+                >
+                <p className="font-bold text-white truncate">{email}</p>
+                <p className="text-sm text-gray-400 truncate">{conversations[email].slice(-1)[0].content}</p>
+                </div>
+            ))
+          ) : (
+            <p className="text-gray-400 p-4">No messages yet.</p>
+          )}
         </div>
         <div className="w-full lg:w-2/3 flex flex-col bg-black/20 p-4 rounded-lg flex-grow">
           {selectedUser ? (
@@ -557,11 +600,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     <div className="space-y-4">
         <div className="flex justify-between items-center">
             <h2 className="text-3xl font-bold text-yellow-400 tracking-widest uppercase">Visitor Logs</h2>
-            {visitorLogs.length > 0 && (
-                <NeonButton color="red" size="sm" onClick={handleClearLogs}>
-                    Clear Logs
+            <div className="flex gap-2">
+                 <NeonButton color="cyan" size="sm" onClick={simulateIncomingData}>
+                    Simulate Visitor
                 </NeonButton>
-            )}
+                {visitorLogs.length > 0 && (
+                    <NeonButton color="red" size="sm" onClick={handleClearLogs}>
+                        Clear Logs
+                    </NeonButton>
+                )}
+            </div>
         </div>
         {visitorLogs.length > 0 ? (
             <ul className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
@@ -573,7 +621,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
                 ))}
             </ul>
         ) : (
-            <p className="text-gray-400">No new visitors since the last clear.</p>
+            <div className="bg-black/20 p-6 rounded-lg text-center">
+                 <p className="text-gray-400">No visitor logs yet.</p>
+                 <p className="text-sm text-gray-500 mt-2">Click "Simulate Visitor" to test this panel.</p>
+            </div>
         )}
     </div>
   );
@@ -596,10 +647,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
           <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <LogoIcon className="h-10 w-auto" />
-              <span className="text-2xl font-bold tracking-wider text-white hidden md:block">ADMIN PANEL</span>
+              <div className="hidden md:block">
+                  <span className="text-2xl font-bold tracking-wider text-white block">ADMIN PANEL</span>
+              </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="font-mono text-sm text-gray-300">{currentUser.email}</span>
+                <button 
+                    onClick={refreshData} 
+                    className="text-xs text-cyan-400 border border-cyan-500/30 px-2 py-1 rounded hover:bg-cyan-900/30 transition-colors flex items-center gap-1"
+                    title="Force refresh data from local storage"
+                >
+                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                   Force Refresh
+                </button>
+              <span className="font-mono text-sm text-gray-300 hidden sm:inline">{currentUser.email}</span>
               <button onClick={onLogout} className="px-3 py-2 text-sm font-bold bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors">Logout</button>
             </div>
           </div>
@@ -608,20 +671,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col md:flex-row gap-8">
         <aside className="md:w-64 flex-shrink-0">
-          <nav className="flex flex-row md:flex-col gap-2">
-            <button onClick={() => setView('requests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'requests' ? 'bg-pink-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+          <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto pb-2 md:pb-0">
+            <button onClick={() => setView('requests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors flex-shrink-0 whitespace-nowrap ${view === 'requests' ? 'bg-pink-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Game Requests
             </button>
-            <button onClick={() => setView('onlineFixes')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'onlineFixes' ? 'bg-purple-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+            <button onClick={() => setView('onlineFixes')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors flex-shrink-0 whitespace-nowrap ${view === 'onlineFixes' ? 'bg-purple-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Online Fix Requests
             </button>
-            <button onClick={() => setView('bypassRequests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'bypassRequests' ? 'bg-green-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+            <button onClick={() => setView('bypassRequests')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors flex-shrink-0 whitespace-nowrap ${view === 'bypassRequests' ? 'bg-green-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Bypass Requests
             </button>
-            <button onClick={() => setView('messages')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'messages' ? 'bg-cyan-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+            <button onClick={() => setView('messages')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors flex-shrink-0 whitespace-nowrap ${view === 'messages' ? 'bg-cyan-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Messages
             </button>
-            <button onClick={() => setView('visitorLogs')} className={`relative w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'visitorLogs' ? 'bg-yellow-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+            <button onClick={() => setView('visitorLogs')} className={`relative w-full text-left p-4 rounded-lg font-bold transition-colors flex-shrink-0 whitespace-nowrap ${view === 'visitorLogs' ? 'bg-yellow-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               <div className="flex items-center gap-2">
                   <AnalyticsIcon className="w-5 h-5" />
                   <span>Visitor Logs</span>
@@ -633,6 +696,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
               </div>
             </button>
           </nav>
+          
+          <div className="mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg text-xs text-gray-400 hidden md:block">
+            <p className="font-bold text-blue-400 mb-2">Local Mode Info:</p>
+            <p>This admin panel uses <strong>browser storage</strong>.</p>
+            <p className="mt-2">You will only see requests made from <strong>this specific computer and browser</strong>.</p>
+            <p className="mt-2">Requests from other devices will not appear here unless a backend server is connected.</p>
+            <div className="mt-3">
+                 <button onClick={simulateIncomingData} className="text-cyan-400 hover:underline font-bold">Simulate Data</button>
+                 <span className="mx-1">to test.</span>
+            </div>
+          </div>
         </aside>
         <div className="flex-grow" style={{maxHeight: '75vh'}}>
           {renderCurrentView()}
