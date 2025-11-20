@@ -12,6 +12,38 @@ interface AdminDashboardProps {
 
 type AdminView = 'requests' | 'messages' | 'onlineFixes' | 'bypassRequests' | 'visitorLogs';
 
+// Helper Icon Component
+const InfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+  </svg>
+);
+
+// Informational Box Component
+const AdminInfoBox: React.FC<{ onTestClick: () => void }> = ({ onTestClick }) => (
+    <div className="p-4 bg-yellow-900/30 border-2 border-yellow-500/50 rounded-lg text-sm text-yellow-300 mb-8 shadow-lg shadow-yellow-500/10">
+      <h3 className="font-bold text-yellow-200 text-lg mb-2 flex items-center gap-2">
+        <InfoIcon className="w-6 h-6" /> Important: How Your Data Works
+      </h3>
+      <p>
+        This admin panel reads data saved <strong>only in this specific web browser</strong>. It is not connected to a central server.
+      </p>
+      <ul className="list-disc list-inside mt-2 space-y-1 pl-2">
+        <li>You can only see requests and messages made from <strong>this computer and browser</strong>.</li>
+        <li>Data from other users on different devices will <strong className="text-red-400">NOT</strong> appear here.</li>
+      </ul>
+      <p className="mt-4">
+        <strong>To test if your panel is working:</strong> Click the button below. It will create a fake user and a request that you will be able to see immediately.
+      </p>
+       <div className="mt-4">
+            <NeonButton color="cyan" size="sm" onClick={onTestClick}>
+                Run Local Test
+            </NeonButton>
+        </div>
+    </div>
+);
+
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }) => {
   const [view, setView] = useState<AdminView>('requests');
   const [gameRequests, setGameRequests] = useState<GameRequest[]>([]);
@@ -110,11 +142,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedUser]);
 
-  // Simulation Helper for Testing
-  const simulateIncomingData = () => {
+  // Guided Test for Admin
+  const runLocalTest = () => {
     const randomId = Math.floor(Math.random() * 1000);
+    const testEmail = `local_test_user_${randomId}@example.com`;
     
-    // Simulate Visitor
+    // 1. Simulate Visitor
     const newLog: VisitorLog = {
         id: Date.now(),
         username: `TestUser_${randomId}`,
@@ -123,20 +156,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     const currentLogs = getStoredData<VisitorLog>('visitorLogs');
     localStorage.setItem('visitorLogs', JSON.stringify([...currentLogs, newLog]));
 
-    // Simulate Request
+    // 2. Simulate Request
     const newReq: GameRequest = {
         id: Date.now(),
-        userEmail: `TestUser_${randomId}@example.com`,
-        gameTitle: `Simulated Request ${randomId}`,
+        userEmail: testEmail,
+        gameTitle: `Local Test Request #${randomId}`,
         timestamp: new Date().toISOString(),
         status: 'pending'
     };
     const currentReqs = getStoredData<GameRequest>('gameRequests');
     localStorage.setItem('gameRequests', JSON.stringify([...currentReqs, newReq]));
 
+    // 3. Simulate Message
+    const newMsg: Message = {
+        id: Date.now(),
+        from: testEmail,
+        to: 'admin',
+        content: `This is a test message from the local user.`,
+        timestamp: new Date().toISOString(),
+        isRead: false,
+    };
+    const currentMsgs = getStoredData<Message>('messages');
+    localStorage.setItem('messages', JSON.stringify([...currentMsgs, newMsg]));
+
     refreshData();
-    alert(`Simulated "TestUser_${randomId}" login and request. Check logs and requests tab.`);
+    setView('requests'); // Switch to the requests tab to show the result
+    alert(`✅ Test Successful!\n\nA test request was just created IN THIS BROWSER.\n\nYou can see it because this test simulates a user and an admin on the same computer. Data from other users on different computers will NOT appear here.`);
   };
+
 
   const sendApprovalNotification = (userEmail: string, content: string) => {
     const allMessages = getStoredData<Message>('messages');
@@ -375,7 +422,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       ) : (
         <div className="bg-black/20 p-6 rounded-lg text-center">
             <p className="text-gray-400 mb-4">No game requests yet.</p>
-            <p className="text-sm text-gray-500">Tip: Try using the "Simulate Data" button to verify the panel works.</p>
         </div>
       )}
     </div>
@@ -601,9 +647,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         <div className="flex justify-between items-center">
             <h2 className="text-3xl font-bold text-yellow-400 tracking-widest uppercase">Visitor Logs</h2>
             <div className="flex gap-2">
-                 <NeonButton color="cyan" size="sm" onClick={simulateIncomingData}>
-                    Simulate Visitor
-                </NeonButton>
                 {visitorLogs.length > 0 && (
                     <NeonButton color="red" size="sm" onClick={handleClearLogs}>
                         Clear Logs
@@ -623,7 +666,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         ) : (
             <div className="bg-black/20 p-6 rounded-lg text-center">
                  <p className="text-gray-400">No visitor logs yet.</p>
-                 <p className="text-sm text-gray-500 mt-2">Click "Simulate Visitor" to test this panel.</p>
             </div>
         )}
     </div>
@@ -696,19 +738,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
               </div>
             </button>
           </nav>
-          
-          <div className="mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg text-xs text-gray-400 hidden md:block">
-            <p className="font-bold text-blue-400 mb-2">Local Mode Info:</p>
-            <p>This admin panel uses <strong>browser storage</strong>.</p>
-            <p className="mt-2">You will only see requests made from <strong>this specific computer and browser</strong>.</p>
-            <p className="mt-2">Requests from other devices will not appear here unless a backend server is connected.</p>
-            <div className="mt-3">
-                 <button onClick={simulateIncomingData} className="text-cyan-400 hover:underline font-bold">Simulate Data</button>
-                 <span className="mx-1">to test.</span>
-            </div>
-          </div>
         </aside>
         <div className="flex-grow" style={{maxHeight: '75vh'}}>
+          <AdminInfoBox onTestClick={runLocalTest} />
           {renderCurrentView()}
         </div>
       </main>
