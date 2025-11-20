@@ -151,8 +151,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAdminLoginRequest 
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    // Check if the welcome popup has been shown in this session
-    if (!sessionStorage.getItem('welcomePopupShown')) {
+    // Check if the welcome popup has been shown ever (using localStorage)
+    if (!localStorage.getItem('welcomePopupShown')) {
       setShowWelcome(true);
     }
 
@@ -168,7 +168,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onAdminLoginRequest 
 
   const handleCloseWelcomePopup = () => {
     setShowWelcome(false);
-    sessionStorage.setItem('welcomePopupShown', 'true');
+    localStorage.setItem('welcomePopupShown', 'true');
   };
 
   const handleViewChange = (view: View) => {
