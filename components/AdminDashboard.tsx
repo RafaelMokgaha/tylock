@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, GameRequest, Message, OnlineFixRequest, BypassRequest } from '../types';
+import type { User, GameRequest, Message, OnlineFixRequest, BypassRequest, VisitorLog } from '../types';
 import LogoIcon from './icons/LogoIcon';
 import NeonButton from './common/NeonButton';
+import AnalyticsIcon from './icons/AnalyticsIcon';
 
 interface AdminDashboardProps {
   onLogout: () => void;
   currentUser: Omit<User, 'password'>;
 }
 
-type AdminView = 'requests' | 'messages' | 'onlineFixes' | 'bypassRequests';
+type AdminView = 'requests' | 'messages' | 'onlineFixes' | 'bypassRequests' | 'visitorLogs';
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }) => {
   const [view, setView] = useState<AdminView>('requests');
@@ -16,6 +17,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
   const [onlineFixRequests, setOnlineFixRequests] = useState<OnlineFixRequest[]>([]);
   const [bypassRequests, setBypassRequests] = useState<BypassRequest[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLog[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   
@@ -53,11 +55,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     const storedFixRequests = getStoredData<OnlineFixRequest>('onlineFixRequests');
     const storedBypassRequests = getStoredData<BypassRequest>('bypassRequests');
     const storedMessages = getStoredData<Message>('messages');
+    const storedLogs = getStoredData<VisitorLog>('visitorLogs');
     
-    setGameRequests(storedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    setOnlineFixRequests(storedFixRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    setBypassRequests(storedBypassRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setGameRequests([...storedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setOnlineFixRequests([...storedFixRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setBypassRequests([...storedBypassRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     setMessages(storedMessages);
+    setVisitorLogs([...storedLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
   }, []);
   
   useEffect(() => {
@@ -124,7 +128,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       ? { ...req, status: 'approved' as 'approved', fileName: file.name, fileUrl } 
       : req
     );
-    setGameRequests(updatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setGameRequests([...updatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     localStorage.setItem('gameRequests', JSON.stringify(updatedRequests));
 
     const approvedRequest = updatedRequests.find(req => req.id === approvingRequestId);
@@ -171,7 +175,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         : req
       );
       
-      setOnlineFixRequests(finalUpdatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      setOnlineFixRequests([...finalUpdatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       localStorage.setItem('onlineFixRequests', JSON.stringify(finalUpdatedRequests));
       
       const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingFixId);
@@ -222,7 +226,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
         ? { ...req, status: 'approved' as 'approved', fileName: bypassFile.name, fileUrl, imageUrl }
         : req
       );
-      setBypassRequests(finalUpdatedRequests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      setBypassRequests([...finalUpdatedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
       localStorage.setItem('bypassRequests', JSON.stringify(finalUpdatedRequests));
       
       const approvedRequest = finalUpdatedRequests.find(req => req.id === approvingBypassId);
@@ -258,6 +262,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       setBypassArtworkUrl('');
     } catch (error) {
       console.error("Error creating object URLs:", error);
+    }
+  };
+
+    const handleClearLogs = () => {
+    if (window.confirm('Are you sure you want to delete all visitor logs? This action cannot be undone.')) {
+        try {
+            localStorage.removeItem('visitorLogs');
+            setVisitorLogs([]);
+        } catch (error) {
+            console.error("Failed to clear visitor logs from localStorage:", error);
+        }
     }
   };
 
@@ -466,7 +481,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
           {selectedUser ? (
             <>
               <div className="flex-grow overflow-y-auto mb-4">
-                {conversations[selectedUser]
+                {[...conversations[selectedUser]]
                     .sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
                     .map(msg => (
                     <div key={msg.id} className={`flex ${msg.from === 'admin' ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -503,12 +518,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     </div>
   );
 
+  const renderVisitorLogs = () => (
+    <div className="space-y-4">
+        <div className="flex justify-between items-center">
+            <h2 className="text-3xl font-bold text-yellow-400 tracking-widest uppercase">Visitor Logs</h2>
+            {visitorLogs.length > 0 && (
+                <NeonButton color="red" size="sm" onClick={handleClearLogs}>
+                    Clear Logs
+                </NeonButton>
+            )}
+        </div>
+        {visitorLogs.length > 0 ? (
+            <ul className="bg-black/20 p-4 rounded-lg max-h-[60vh] overflow-y-auto">
+                {visitorLogs.map(log => (
+                    <li key={log.id} className="p-3 border-b border-yellow-500/20 flex justify-between items-center gap-4">
+                        <p className="font-bold text-white">{log.username}</p>
+                        <p className="text-sm text-gray-400">{new Date(log.timestamp).toLocaleString()}</p>
+                    </li>
+                ))}
+            </ul>
+        ) : (
+            <p className="text-gray-400">No new visitors since the last clear.</p>
+        )}
+    </div>
+  );
+
   const renderCurrentView = () => {
     switch(view) {
         case 'requests': return renderRequests();
         case 'onlineFixes': return renderOnlineFixRequests();
         case 'bypassRequests': return renderBypassRequests();
         case 'messages': return renderMessages();
+        case 'visitorLogs': return renderVisitorLogs();
         default: return renderRequests();
     }
   }
@@ -544,6 +585,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
             </button>
             <button onClick={() => setView('messages')} className={`w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'messages' ? 'bg-cyan-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
               Messages
+            </button>
+            <button onClick={() => setView('visitorLogs')} className={`relative w-full text-left p-4 rounded-lg font-bold transition-colors ${view === 'visitorLogs' ? 'bg-yellow-500/80 text-white' : 'bg-gray-800/50 hover:bg-gray-700/50'}`}>
+              <div className="flex items-center gap-2">
+                  <AnalyticsIcon className="w-5 h-5" />
+                  <span>Visitor Logs</span>
+                  {visitorLogs.length > 0 && (
+                    <span className="absolute top-2 right-2 flex h-5 w-5">
+                      <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 text-xs items-center justify-center font-bold">{visitorLogs.length}</span>
+                    </span>
+                  )}
+              </div>
             </button>
           </nav>
         </aside>

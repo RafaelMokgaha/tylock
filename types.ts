@@ -54,3 +54,9 @@ export interface Message {
   timestamp: string;
   isRead: boolean;
 }
+
+export interface VisitorLog {
+  id: number;
+  timestamp: string;
+  username: string;
+}
