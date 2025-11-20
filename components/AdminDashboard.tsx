@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { User, GameRequest, Message, OnlineFixRequest, BypassRequest, VisitorLog } from '../types';
 import LogoIcon from './icons/LogoIcon';
@@ -50,18 +51,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     }
   };
 
-  useEffect(() => {
+  // Polling function to keep data fresh
+  const refreshData = () => {
     const storedRequests = getStoredData<GameRequest>('gameRequests');
     const storedFixRequests = getStoredData<OnlineFixRequest>('onlineFixRequests');
     const storedBypassRequests = getStoredData<BypassRequest>('bypassRequests');
     const storedMessages = getStoredData<Message>('messages');
     const storedLogs = getStoredData<VisitorLog>('visitorLogs');
-    
-    setGameRequests([...storedRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    setOnlineFixRequests([...storedFixRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    setBypassRequests([...storedBypassRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    setMessages(storedMessages);
-    setVisitorLogs([...storedLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
+    const sortDesc = (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+    setGameRequests(prev => {
+        const sorted = [...storedRequests].sort(sortDesc);
+        return JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted;
+    });
+
+    setOnlineFixRequests(prev => {
+        const sorted = [...storedFixRequests].sort(sortDesc);
+        return JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted;
+    });
+
+    setBypassRequests(prev => {
+        const sorted = [...storedBypassRequests].sort(sortDesc);
+        return JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted;
+    });
+
+    setMessages(prev => {
+        // We don't sort messages here as the UI handles grouping and sorting by conversation
+        return JSON.stringify(prev) === JSON.stringify(storedMessages) ? prev : storedMessages;
+    });
+
+    setVisitorLogs(prev => {
+        const sorted = [...storedLogs].sort(sortDesc);
+        return JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted;
+    });
+  };
+
+  useEffect(() => {
+    refreshData(); // Initial load
+    const intervalId = setInterval(refreshData, 2000); // Poll every 2 seconds for changes
+
+    return () => clearInterval(intervalId);
   }, []);
   
   useEffect(() => {
@@ -81,6 +111,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     const updatedMessages = [...allMessages, newMessage];
     setMessages(updatedMessages); 
     localStorage.setItem('messages', JSON.stringify(updatedMessages));
+    refreshData(); // Force immediate refresh
   };
 
   const conversations = messages.reduce((acc, msg) => {
@@ -109,6 +140,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     setMessages(updatedMessages);
     localStorage.setItem('messages', JSON.stringify(updatedMessages));
     setReplyContent('');
+    refreshData(); // Force immediate refresh
   };
 
   const triggerFileUpload = (requestId: number) => {
@@ -143,6 +175,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
     
     // Reset file input
     event.target.value = '';
+    refreshData(); // Force immediate refresh
   };
 
   const handleArtworkUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,6 +225,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       setArtworkFile(null);
       setArtworkPreview(null);
       setArtworkUrl('');
+      refreshData(); // Force immediate refresh
     } catch (error) {
       console.error("Error creating object URLs:", error);
     }
@@ -260,6 +294,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
       setBypassArtworkFile(null);
       setBypassArtworkPreview(null);
       setBypassArtworkUrl('');
+      refreshData(); // Force immediate refresh
     } catch (error) {
       console.error("Error creating object URLs:", error);
     }
