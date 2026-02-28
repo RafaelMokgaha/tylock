@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import NamePrompt from './components/NamePrompt';
+import DemoModeBanner from './components/DemoModeBanner';
 import type { User, VisitorLog } from './types';
 
 const ADMIN_EMAIL = 'rafaproject06@gmail.com';
@@ -109,6 +110,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-transparent text-white selection:bg-pink-500 selection:text-white">
+      <DemoModeBanner />
       {showAdminLogin && (
         <AdminLoginModal 
           onClose={() => setShowAdminLogin(false)} 

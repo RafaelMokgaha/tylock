@@ -12,38 +12,6 @@ interface AdminDashboardProps {
 
 type AdminView = 'requests' | 'messages' | 'onlineFixes' | 'bypassRequests' | 'visitorLogs';
 
-// Helper Icon Component
-const InfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-  </svg>
-);
-
-// Informational Box Component
-const AdminInfoBox: React.FC<{ onTestClick: () => void }> = ({ onTestClick }) => (
-    <div className="p-4 bg-yellow-900/30 border-2 border-yellow-500/50 rounded-lg text-sm text-yellow-300 mb-8 shadow-lg shadow-yellow-500/10">
-      <h3 className="font-bold text-yellow-200 text-lg mb-2 flex items-center gap-2">
-        <InfoIcon className="w-6 h-6" /> Important: How Your Data Works
-      </h3>
-      <p>
-        This admin panel reads data saved <strong>only in this specific web browser</strong>. It is not connected to a central server.
-      </p>
-      <ul className="list-disc list-inside mt-2 space-y-1 pl-2">
-        <li>You can only see requests and messages made from <strong>this computer and browser</strong>.</li>
-        <li>Data from other users on different devices will <strong className="text-red-400">NOT</strong> appear here.</li>
-      </ul>
-      <p className="mt-4">
-        <strong>To test if your panel is working:</strong> Click the button below. It will create a fake user and a request that you will be able to see immediately.
-      </p>
-       <div className="mt-4">
-            <NeonButton color="cyan" size="sm" onClick={onTestClick}>
-                Run Local Test
-            </NeonButton>
-        </div>
-    </div>
-);
-
-
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }) => {
   const [view, setView] = useState<AdminView>('requests');
   const [gameRequests, setGameRequests] = useState<GameRequest[]>([]);
@@ -141,48 +109,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedUser]);
-
-  // Guided Test for Admin
-  const runLocalTest = () => {
-    const randomId = Math.floor(Math.random() * 1000);
-    const testEmail = `local_test_user_${randomId}@example.com`;
-    
-    // 1. Simulate Visitor
-    const newLog: VisitorLog = {
-        id: Date.now(),
-        username: `TestUser_${randomId}`,
-        timestamp: new Date().toISOString()
-    };
-    const currentLogs = getStoredData<VisitorLog>('visitorLogs');
-    localStorage.setItem('visitorLogs', JSON.stringify([...currentLogs, newLog]));
-
-    // 2. Simulate Request
-    const newReq: GameRequest = {
-        id: Date.now(),
-        userEmail: testEmail,
-        gameTitle: `Local Test Request #${randomId}`,
-        timestamp: new Date().toISOString(),
-        status: 'pending'
-    };
-    const currentReqs = getStoredData<GameRequest>('gameRequests');
-    localStorage.setItem('gameRequests', JSON.stringify([...currentReqs, newReq]));
-
-    // 3. Simulate Message
-    const newMsg: Message = {
-        id: Date.now(),
-        from: testEmail,
-        to: 'admin',
-        content: `This is a test message from the local user.`,
-        timestamp: new Date().toISOString(),
-        isRead: false,
-    };
-    const currentMsgs = getStoredData<Message>('messages');
-    localStorage.setItem('messages', JSON.stringify([...currentMsgs, newMsg]));
-
-    refreshData();
-    setView('requests'); // Switch to the requests tab to show the result
-    alert(`✅ Test Successful!\n\nA test request was just created IN THIS BROWSER.\n\nYou can see it because this test simulates a user and an admin on the same computer. Data from other users on different computers will NOT appear here.`);
-  };
 
 
   const sendApprovalNotification = (userEmail: string, content: string) => {
@@ -740,7 +666,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, currentUser }
           </nav>
         </aside>
         <div className="flex-grow" style={{maxHeight: '75vh'}}>
-          <AdminInfoBox onTestClick={runLocalTest} />
           {renderCurrentView()}
         </div>
       </main>
