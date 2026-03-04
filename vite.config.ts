@@ -4,23 +4,24 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'url';
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    return {
-      server: {
-        port: 3000,
-        host: '0.0.0.0',
-        allowedHosts: ['tylock.onrender.com']   // ✅ FIXED FOR RENDER
-      },
-      plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
-      resolve: {
-        alias: {
-          // Fix: Replace __dirname with an ESM-compatible equivalent.
-          '@': fileURLToPath(new URL('.', import.meta.url)),
-        }
+  const env = loadEnv(mode, '.', '');
+  return {
+    base: '/',
+    server: {
+      port: 3000,
+      host: '0.0.0.0',
+      allowedHosts: ['tylock.onrender.com']   // ✅ FIXED FOR RENDER
+    },
+    plugins: [react()],
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+    },
+    resolve: {
+      alias: {
+        // Fix: Replace __dirname with an ESM-compatible equivalent.
+        '@': fileURLToPath(new URL('.', import.meta.url)),
       }
-    };
+    }
+  };
 });

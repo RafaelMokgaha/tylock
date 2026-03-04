@@ -7,18 +7,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# Build artifacts
 dist
 dist-ssr
-*.local
+out
+build
+bin
+obj
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Executables and Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.msi
+*.zip
+*.7z
+*.rar
+*.dat
+
+# Native modules
+node_modules
+*.node
+
+# OS files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db

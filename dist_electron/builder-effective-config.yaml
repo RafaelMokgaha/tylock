@@ -1,0 +1,20 @@
+directories:
+  output: dist_electron
+  buildResources: build
+appId: com.tylock.games
+productName: TYLOCK GAMES
+asar: false
+files:
+  - filter:
+      - dist/**/*
+      - build/**/*
+      - main.js
+win:
+  target: nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  shortcutName: TYLOCK GAMES
+electronVersion: 40.6.1

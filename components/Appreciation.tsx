@@ -4,7 +4,7 @@ import NeonButton from './common/NeonButton';
 import HeartIcon from './icons/HeartIcon';
 
 const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <h2 className="text-3xl font-bold text-pink-400 tracking-widest uppercase mb-8 relative pb-4 after:content-[''] after:absolute after:left-0 after:bottom-0 after:w-24 after:h-1 after:bg-pink-500 after:shadow-[0_0_10px_theme(colors.pink.500)]">
+    <h2 className="text-3xl font-bold text-red-400 tracking-widest uppercase mb-8 relative pb-4 after:content-[''] after:absolute after:left-0 after:bottom-0 after:w-24 after:h-1 after:bg-red-500">
         {children}
     </h2>
 );
@@ -42,10 +42,10 @@ const Appreciation: React.FC = () => {
     };
 
     return (
-        <section className="bg-gray-800/50 p-6 sm:p-8 rounded-lg border border-pink-500/30 w-full max-w-3xl mx-auto text-center">
+        <section className="bg-gray-800/50 p-6 sm:p-8 rounded-lg border border-red-500/30 w-full max-w-3xl mx-auto text-center">
             <SectionHeader>Show Your Appreciation</SectionHeader>
-            <HeartIcon className="w-20 h-20 text-pink-400 mx-auto mb-6 drop-shadow-[0_0_10px_theme(colors.pink.400)]" />
-            
+            <HeartIcon className="w-20 h-20 text-red-400 mx-auto mb-6" />
+
             <p className="text-gray-300 text-lg mb-4">
                 Thank you for being a part of our community!
             </p>
@@ -54,14 +54,14 @@ const Appreciation: React.FC = () => {
             </p>
 
             <div className="relative inline-block">
-                <a 
+                <a
                     href="https://pay.yoco.com/r/7vynxd"
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={handleDonateClick}
                     className="inline-block" // Needed for the relative positioning of emojis
                 >
-                    <NeonButton color="pink" size="md">
+                    <NeonButton color="red" size="md">
                         <div className="flex items-center gap-3">
                             <HeartIcon className="w-6 h-6" />
                             <span>Donate Now</span>
@@ -84,8 +84,8 @@ const Appreciation: React.FC = () => {
                 ))}
             </div>
 
-            <div className="mt-12 text-left bg-black/20 p-4 rounded-lg border border-purple-500/20">
-                <h3 className="font-bold text-purple-300 text-lg mb-3">What your donation supports:</h3>
+            <div className="mt-12 text-left bg-black/20 p-4 rounded-lg border border-red-500/20">
+                <h3 className="font-bold text-red-300 text-lg mb-3">What your donation supports:</h3>
                 <ul className="space-y-2 text-gray-300 list-disc list-inside">
                     <li>High-speed servers for fast downloads.</li>
                     <li>Acquiring new and requested game titles.</li>
@@ -98,3 +98,5 @@ const Appreciation: React.FC = () => {
 };
 
 export default Appreciation;
+
+

@@ -1,13 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import NeonButton from './common/NeonButton';
-import type { OnlineFixRequest } from '../types';
-
-const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <h2 className="text-3xl font-bold text-purple-400 tracking-widest uppercase mb-8 relative pb-4 after:content-[''] after:absolute after:left-0 after:bottom-0 after:w-24 after:h-1 after:bg-purple-500 after:shadow-[0_0_10px_theme(colors.purple.500)]">
-        {children}
-    </h2>
-);
+import { db } from '../lib/firebase';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
 
 interface OnlineFixProps {
     userEmail: string;
@@ -16,33 +11,21 @@ interface OnlineFixProps {
 const RequestForm: React.FC<{ userEmail: string; onSubmitted: () => void }> = ({ userEmail, onSubmitted }) => {
     const [gameTitle, setGameTitle] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const getOnlineFixRequests = (): OnlineFixRequest[] => {
-        try {
-            const requests = localStorage.getItem('onlineFixRequests');
-            return requests ? JSON.parse(requests) : [];
-        } catch (error) {
-            console.error("Failed to parse online fix requests from localStorage:", error);
-            return [];
-        }
-    };
-
-    const saveOnlineFixRequests = (requests: OnlineFixRequest[]) => {
-        localStorage.setItem('onlineFixRequests', JSON.stringify(requests));
-    };
-
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (gameTitle) {
-            const requests = getOnlineFixRequests();
-            const newRequest: OnlineFixRequest = {
-                id: Date.now(),
+        const title = gameTitle.trim();
+        if (!title) return;
+
+        setLoading(true);
+        try {
+            await addDoc(collection(db, 'onlineFixRequests'), {
                 userEmail,
-                gameTitle,
-                timestamp: new Date().toISOString(),
+                gameTitle: title,
+                timestamp: serverTimestamp(),
                 status: 'pending',
-            };
-            saveOnlineFixRequests([...requests, newRequest]);
+            });
 
             setSubmitted(true);
             setGameTitle('');
@@ -50,97 +33,130 @@ const RequestForm: React.FC<{ userEmail: string; onSubmitted: () => void }> = ({
                 setSubmitted(false);
                 onSubmitted();
             }, 3000);
+        } catch (error) {
+            console.error("Failed to submit online fix request:", error);
+            alert("Failed to submit request.");
+        } finally {
+            setLoading(false);
         }
     };
 
     if (submitted) {
         return (
-            <div className="flex-grow flex items-center justify-center text-center text-green-400 p-8 bg-gray-900/50 rounded-lg">
-                <p>Thanks! Your request for an online fix has been submitted.</p>
+            <div className="flex-grow flex flex-col items-center justify-center text-center p-12 bg-red-500/10 rounded-2xl border border-red-500/20 animate-fade-in mt-12">
+                <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                    <Plus className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Request Successful!</h3>
+                <p className="text-gray-400">Thanks! Your request for an online fix has been submitted.</p>
             </div>
         );
     }
 
     return (
-        <div className="mt-12">
-            <h3 className="text-2xl font-bold text-center text-white mb-4">Request an Online Fix</h3>
-            <p className="text-gray-400 mb-6 text-center">Can't find the fix you need? Let us know!</p>
-            <form onSubmit={handleSubmit} className="space-y-6 max-w-lg mx-auto">
-                <div>
-                    <label htmlFor="gameTitleFix" className="block text-purple-300 text-sm font-bold mb-2">
+        <div className="mt-20 bg-[#121214]/60 backdrop-blur-xl border border-white/5 p-10 rounded-3xl max-w-2xl mx-auto shadow-2xl">
+            <h3 className="text-2xl font-bold text-center text-white mb-2">Request an Online Fix</h3>
+            <p className="text-gray-500 mb-8 text-center">Can't find the fix you need? Let our team know!</p>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-4">
+                    <label htmlFor="gameTitleFix" className="text-xs font-semibold text-gray-400 uppercase tracking-widest ml-1">
                         Game Title
                     </label>
                     <input
                         id="gameTitleFix"
                         type="text"
+                        required
+                        disabled={loading}
                         value={gameTitle}
                         onChange={(e) => setGameTitle(e.target.value)}
                         placeholder="e.g., Elden Ring"
-                        className="w-full px-4 py-3 bg-gray-900/70 border-2 border-purple-500/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-300"
+                        className="w-full px-4 py-4 bg-[#1a1a1e] border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all font-bold text-lg disabled:opacity-50"
                     />
                 </div>
-                <NeonButton type="submit" color="purple" fullWidth>
-                    Submit Request
+                <NeonButton type="submit" color="red" fullWidth disabled={loading}>
+                    {loading ? 'Submitting...' : 'Submit Fix Request'}
                 </NeonButton>
             </form>
         </div>
     );
 };
 
+const SectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <h2 className="text-3xl font-bold text-red-400 tracking-widest uppercase mb-8 relative pb-4 after:content-[''] after:absolute after:left-0 after:bottom-0 after:w-24 after:h-1 after:bg-red-500">
+        {children}
+    </h2>
+);
 
 const OnlineFix: React.FC<OnlineFixProps> = ({ userEmail }) => {
-  const [approvedFixes, setApprovedFixes] = useState<OnlineFixRequest[]>([]);
+    const [approvedFixes, setApprovedFixes] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let allRequests: OnlineFixRequest[] = [];
-    try {
-        allRequests = JSON.parse(localStorage.getItem('onlineFixRequests') || '[]');
-    } catch (error) {
-        console.error("Failed to parse online fix requests from localStorage:", error);
-    }
-    const filteredFixes = allRequests.filter(req => req.status === 'approved' && req.fileUrl && req.imageUrl);
-    setApprovedFixes(filteredFixes);
-  }, []);
+    useEffect(() => {
+        const q = query(
+            collection(db, 'onlineFixRequests'),
+            where('status', '==', 'approved'),
+            orderBy('timestamp', 'desc')
+        );
 
-  const handleRequestSubmitted = () => {
-    // This function can be used to show a global notification in the future
-    console.log("Online fix request submitted");
-  };
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fixes = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setApprovedFixes(fixes.filter((f: any) => f.fileUrl && f.imageUrl));
+            setLoading(false);
+        }, (error) => {
+            console.error("Firestore error:", error);
+            setLoading(false);
+        });
 
-  return (
-    <section className="w-full max-w-7xl mx-auto">
-      <SectionHeader>Available Online Fixes</SectionHeader>
-      {approvedFixes.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
-          {approvedFixes.map(fix => (
-            <div key={fix.id} className="group relative aspect-[3/4] overflow-hidden rounded-lg shadow-lg transition-all duration-300 transform hover:-translate-y-2 bg-gray-900">
-                <img 
-                    src={fix.imageUrl} 
-                    alt={fix.gameTitle} 
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-30 group-hover:opacity-50" 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
-                <div className="absolute inset-0 border-2 border-transparent group-hover:border-purple-400 rounded-lg transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:shadow-[0_0_15px_theme(colors.purple.400)]"></div>
-                <div className="relative h-full flex flex-col justify-end text-white p-3 md:p-4">
-                     <h3 className="font-bold text-base md:text-lg leading-tight truncate mb-4">{fix.gameTitle}</h3>
-                     {fix.fileUrl && fix.fileName && (
-                        <a href={fix.fileUrl} download={fix.fileName} className="block">
-                            <NeonButton size="sm" fullWidth color="purple">Download</NeonButton>
-                        </a>
-                     )}
+        return () => unsubscribe();
+    }, []);
+
+    const handleRequestSubmitted = () => {
+        console.log("Online fix request submitted");
+    };
+
+    return (
+        <section className="w-full max-w-7xl mx-auto animate-fade-in">
+            <SectionHeader>Available Online Fixes</SectionHeader>
+            {loading ? (
+                <div className="flex items-center justify-center py-20">
+                    <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-gray-800/30 rounded-lg">
-            <p className="text-gray-400 text-lg">No online fixes are available yet.</p>
-        </div>
-      )}
-      <div className="my-12 h-px bg-purple-500/30 w-full"></div>
-      <RequestForm userEmail={userEmail} onSubmitted={handleRequestSubmitted} />
-    </section>
-  );
+            ) : approvedFixes.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                    {approvedFixes.map(fix => (
+                        <div key={fix.id} className="group relative aspect-[3/4] overflow-hidden rounded-xl shadow-lg transition-all duration-300 transform hover:-translate-y-1 bg-[#121214]">
+                            <img
+                                src={fix.imageUrl}
+                                alt={fix.gameTitle}
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                            <div className="absolute inset-0 border-2 border-transparent group-hover:border-red-500 rounded-xl transition-all duration-300"></div>
+                            <div className="relative h-full flex flex-col justify-end text-white p-6">
+                                <h3 className="font-bold text-lg leading-tight mb-4">{fix.gameTitle}</h3>
+                                {fix.fileUrl && fix.fileName && (
+                                    <a href={fix.fileUrl} download={fix.fileName} className="block">
+                                        <NeonButton size="sm" fullWidth color="red">Download Fix</NeonButton>
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 bg-[#121214]/40 rounded-3xl border border-white/5">
+                    <p className="text-gray-500 text-lg">No approved fixes available yet.</p>
+                </div>
+            )}
+            <div className="my-16 h-px bg-white/5 w-full"></div>
+            <RequestForm userEmail={userEmail} onSubmitted={handleRequestSubmitted} />
+        </section>
+    );
 };
 
 export default OnlineFix;
+
+

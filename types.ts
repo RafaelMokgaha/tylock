@@ -12,6 +12,7 @@ export interface User {
   dob: string; // Date of Birth
   email: string;
   password: string;
+  photoURL?: string;
 }
 
 export interface GameRequest {
@@ -59,4 +60,35 @@ export interface VisitorLog {
   id: number;
   timestamp: string;
   username: string;
+}
+
+export interface Announcement {
+  id?: string;
+  content: string;
+  type: 'info' | 'warning' | 'critical';
+  timestamp: any;
+  active: boolean;
+}
+
+export interface Channel {
+  id?: string;
+  name: string;
+  type: 'text' | 'voice';
+  createdBy: string;
+  timestamp: any;
+}
+export interface FriendRequest {
+  id: string;
+  from: string; // sender email
+  fromName: string;
+  to: string; // receiver email
+  toName: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  timestamp: any;
+}
+
+export interface Friendship {
+  id: string;
+  users: string[]; // [email1, email2]
+  timestamp: any;
 }
